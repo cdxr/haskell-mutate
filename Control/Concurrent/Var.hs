@@ -29,8 +29,8 @@ module Control.Concurrent.Var (
  , write
  -- * Reading
  , ReadVar ( readVar, readVarIO )
- , getVar
- , getVarIO
+ , askVar
+ , askVarIO
  -- * Writing
  , WriteVar ( writeVar )
  , putVar
@@ -156,11 +156,11 @@ write :: (WriteVar v) => v s -> Write s
 write = Write . writeVar
 
 
-getVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
-getVar = asking readVar
+askVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
+askVar = asking readVar
 
-getVarIO :: (ReadVar v, MonadReader (v s) m) => m (IO s)
-getVarIO = asking readVarIO
+askVarIO :: (ReadVar v, MonadReader (v s) m) => m (IO s)
+askVarIO = asking readVarIO
 
 putVar :: (WriteVar v, MonadReader (v s) m) => s -> m (STM ())
 putVar = asking . flip writeVar
