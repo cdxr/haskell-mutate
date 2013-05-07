@@ -116,12 +116,12 @@ instance EditVar TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
-instance EditVar Edit where
-    editVar (Edit g) = g
-
 instance EditVar TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
+
+instance EditVar Edit where
+    editVar (Edit g) = g
 
 
 -- | This class represents an STM transaction that stores a shared state.
@@ -136,6 +136,9 @@ class WriteVar v where
 
 instance WriteVar TVar where
     writeVar = writeTVar
+
+instance WriteVar TMVar where
+    writeVar v = void . tryPutTMVar v
 
 instance WriteVar Edit where
     writeVar v = editVar v . const
