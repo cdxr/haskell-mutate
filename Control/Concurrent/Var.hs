@@ -23,9 +23,9 @@ It also provides two abstract types:
 
 module Control.Concurrent.Var (
  -- * Types
-   Edit
+   Edit ( Edit, runEdit )
  , edit
- , Write
+ , Write ( Write, runWrite )
  , write
  -- * Reading
  , ReadVar ( readVar, readVarIO )
@@ -54,10 +54,10 @@ import Control.Monad.STM.Class
 
 -- | An abstract type representing a shared state that can be modified.
 -- There is no way to observe the internal state.
-newtype Edit s = Edit ((s -> s) -> STM ())
+newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
 -- | An abstract type representing a shared state that can be replaced.
-newtype Write s = Write (s -> STM ())
+newtype Write s = Write { runWrite :: s -> STM () }
 
 
 -- | This class represents STM transactions that observe shared state.
