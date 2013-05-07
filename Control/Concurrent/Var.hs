@@ -48,6 +48,7 @@ import Control.Monad.Reader.Class
 
 import Control.Concurrent.STM ( STM, atomically )
 import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM.TMVar ( TMVar, tryTakeTMVar, tryPutTMVar )
 
 import Control.Monad.STM.Class
 
@@ -95,7 +96,8 @@ instance ReadVar STM where
 
 
 -- | This class represents an STM transaction that modifies a shared state.
--- 'editVar' must not block.
+-- 'editVar' must not block, but it may do nothing when the state is not
+-- present.
 --
 -- @
 -- 'editVar' v f >> 'editVar' v g === 'editVar' v (g . f)
@@ -116,6 +118,10 @@ instance EditVar TVar where
  
 instance EditVar Edit where
     editVar (Edit g) = g
+
+instance EditVar TMVar where
+    -- maps the function over the stored value, if it exists
+    editVar v = void . tryModifyTMVar v
 
 
 -- | This class represents an STM transaction that stores a shared state.
@@ -179,6 +185,13 @@ modifyVar' = asking . flip editVar'
 joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
 joinSTM m = liftSTM =<< m
 
+
+tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
+tryModifyTMVar v f = do
+    mx <- tryTakeTMVar v
+    case mx of
+        Just x -> tryPutTMVar v (f x)
+        Nothing -> return False
 
 ------------------------------------------------------------------------------
 -- Local Helpers
