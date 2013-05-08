@@ -1,4 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 {-|
 Module      : Control.Concurrent.Var
@@ -58,7 +60,7 @@ import Control.Monad.STM.Class
 newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
 -- | Encapsulate an editable variable in an @Edit v@.
-edit :: (EditVar v) => v s -> Edit s
+edit :: (EditVar v s) => v -> Edit s
 edit = Edit . editVar
 
 
@@ -66,7 +68,7 @@ edit = Edit . editVar
 newtype Write s = Write { runWrite :: s -> STM () }
 
 -- | Encapsulate a writable variable in a @Write v@.
-write :: (WriteVar v) => v s -> Write s
+write :: (WriteVar v s) => v -> Write s
 write = Write . writeVar
 
 
@@ -87,13 +89,13 @@ write = Write . writeVar
 --
 -- Minimal complete definition: 'readVar'
 --
-class ReadVar v where
-    readVar   :: v s -> STM s
+class ReadVar v s | v -> s where
+    readVar   :: v -> STM s
 
-    readVarIO :: v s -> IO s
+    readVarIO :: v -> IO s
     readVarIO = atomically . readVar
 
-instance ReadVar TVar where
+instance ReadVar (TVar s) s where
     readVar = readTVar
     readVarIO = readTVarIO
 
@@ -122,22 +124,22 @@ instance ReadVar STM where
 --
 -- Minimal complete definition: 'editVar'
 --
-class EditVar v where
-    editVar  :: v s -> (s -> s) -> STM ()
+class EditVar v s | v -> s where
+    editVar  :: v -> (s -> s) -> STM ()
 
     -- | A strict version of 'editVar'
-    editVar' :: v s -> (s -> s) -> STM ()
+    editVar' :: v -> (s -> s) -> STM ()
     editVar' v f = editVar v $! f
 
-instance EditVar TVar where
+instance EditVar (TVar s) s where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
-instance EditVar TMVar where
+instance EditVar (TMVar s) s where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
 
-instance EditVar Edit where
+instance EditVar (Edit s) s where
     editVar = runEdit
 
 
@@ -155,36 +157,36 @@ instance EditVar Edit where
 -- 'writeVar' v a === 'editVar' v (const a)
 -- @
 --
-class WriteVar v where
-    writeVar :: v s -> s -> STM ()
+class WriteVar v s where
+    writeVar :: v -> s -> STM ()
 
-instance WriteVar TVar where
+instance WriteVar (TVar s) s where
     writeVar = writeTVar
 
-instance WriteVar TMVar where
+instance WriteVar (TMVar s) s where
     writeVar v = void . tryPutTMVar v
 
-instance WriteVar Edit where
+instance WriteVar (Edit s) s where
     writeVar v = editVar v . const
 
-instance WriteVar Write where
+instance WriteVar (Write s) s where
     writeVar = runWrite
 
 
-askVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
+askVar :: (ReadVar v s, MonadReader v m) => m (STM s)
 askVar = asking readVar
 
-askVarIO :: (ReadVar v, MonadReader (v s) m) => m (IO s)
+askVarIO :: (ReadVar v s, MonadReader v m) => m (IO s)
 askVarIO = asking readVarIO
 
-putVar :: (WriteVar v, MonadReader (v s) m) => s -> m (STM ())
+putVar :: (WriteVar v s, MonadReader v m) => s -> m (STM ())
 putVar = asking . flip writeVar
 
-modifyVar :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
+modifyVar :: (EditVar v s, MonadReader v m) => (s -> s) -> m (STM ())
 modifyVar = asking . flip editVar
 
 -- | A strict version of 'modifyVar'
-modifyVar' :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
+modifyVar' :: (EditVar v s, MonadReader v m) => (s -> s) -> m (STM ())
 modifyVar' = asking . flip editVar'
 
 
