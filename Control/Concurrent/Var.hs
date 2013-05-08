@@ -22,9 +22,9 @@ It also provides two abstract types:
 
 module Control.Concurrent.Var (
  -- * Types
-   Edit ( Edit, runEdit )
+   Edit
  , edit
- , Write ( Write, runWrite )
+ , Write
  , write
  -- * Reading
  , ReadVar ( readVar, readVarIO )
