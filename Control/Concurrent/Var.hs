@@ -9,16 +9,15 @@ Maintainer  : cdxr01@gmail.com
 Stability   : experimental
 Portability : non-portable (STM and FlexibleContexts)
 
-This module provides the typeclasses 'WriteVar', 'EditVar', and 'ReadVar', for
-dealing with shared state that may be replaced, modified, and retrieved.
-It also includes monadic combinators for working with STM that are implemented
-in terms of these typeclasses.
+This module provides combinators for working with shared mutable state. It
+defines the typeclasses 'WriteVar', 'EditVar', and 'ReadVar', for
+working with values that may be replaced, modified, and retrieved.
 
 It also provides two abstract types:
 
-* 'Edit'  - Modifiable state isomorphic to ((s -> s) -> STM ())
+* 'Edit'  - "Modify-only" variable isomorphic to @(s -> s) -> STM ()@
 
-* 'Write' - Replacable state isomorphic to (s -> STM ())
+* 'Write' - "Replace-only" variable isomorphic to @s -> STM ()@
 -}
 
 module Control.Concurrent.Var (
@@ -40,6 +39,7 @@ module Control.Concurrent.Var (
  , modifyVar'
  -- * Utilities
  , joinSTM
+ , tryModifyTMVar
 ) where
 
 
@@ -57,8 +57,17 @@ import Control.Monad.STM.Class
 -- There is no way to observe the internal state.
 newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
+-- | Encapsulate an editable variable in an @Edit v@ so that it cannot be observed.
+edit :: (EditVar v) => v s -> Edit s
+edit = Edit . editVar
+
+
 -- | An abstract type representing a shared state that can be replaced.
 newtype Write s = Write { runWrite :: s -> STM () }
+
+-- | Encapsulate a value in a @Write v@ so that it can only be replaced.
+write :: (WriteVar v) => v s -> Write s
+write = Write . writeVar
 
 
 -- | This class represents STM transactions that observe shared state.
@@ -67,6 +76,13 @@ newtype Write s = Write { runWrite :: s -> STM () }
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
 -- 'readVarIO' = 'atomically' . 'readVar'
+-- @
+--
+-- If a type is an instance of both 'ReadVar' and 'WriteVar', the following
+-- must hold:
+--
+-- @
+-- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
 -- @
 --
 -- Minimal complete definition: 'readVar'
@@ -121,7 +137,7 @@ instance EditVar TMVar where
     editVar v = void . tryModifyTMVar v
 
 instance EditVar Edit where
-    editVar (Edit g) = g
+    editVar = runEdit
 
 
 -- | This class represents an STM transaction that stores a shared state.
@@ -129,6 +145,13 @@ instance EditVar Edit where
 --
 -- @
 -- 'writeVar' v s === 'writeVar' v a >> 'writeVar' v s
+-- @
+--
+-- If a type is an instance of both 'EditVar' and 'WriteVar', the following
+-- must hold:
+--
+-- @
+-- 'writeVar' v a === 'editVar' v (const a)
 -- @
 --
 class WriteVar v where
@@ -144,16 +167,7 @@ instance WriteVar Edit where
     writeVar v = editVar v . const
 
 instance WriteVar Write where
-    writeVar (Write f) = f
-
-
--- | Encapsulate a value in an @Edit v@ so that it cannot be observed.
-edit :: (EditVar v) => v s -> Edit s
-edit = Edit . editVar
-
--- | Encapsulate a value in a @Write v@ so that it can only be replaced.
-write :: (WriteVar v) => v s -> Write s
-write = Write . writeVar
+    writeVar = runWrite
 
 
 askVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
@@ -189,6 +203,8 @@ joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
 joinSTM m = liftSTM =<< m
 
 
+-- | Determine if a TMVar is not empty, and if not, apply a function to its
+-- value.
 tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
 tryModifyTMVar v f = do
     mx <- tryTakeTMVar v
