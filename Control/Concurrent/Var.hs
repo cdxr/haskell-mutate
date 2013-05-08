@@ -9,7 +9,7 @@ License     : BSD-style
 
 Maintainer  : cdxr01@gmail.com
 Stability   : experimental
-Portability : non-portable (STM and FlexibleContexts)
+Portability : non-portable
 
 This module provides combinators for working with shared mutable state. It
 defines the typeclasses 'WriteVar', 'EditVar', and 'ReadVar', for
