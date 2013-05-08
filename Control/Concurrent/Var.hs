@@ -72,19 +72,12 @@ write :: (WriteVar v s) => v -> Write s
 write = Write . writeVar
 
 
--- | This class represents STM transactions that observe shared state.
+-- | This class represents shared observable state.
 -- 'readVar' must not modify any values, and must not block.
 --
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
 -- 'readVarIO' = 'atomically' . 'readVar'
--- @
---
--- If a type is an instance of both 'ReadVar' and 'WriteVar', the following
--- must hold:
---
--- @
--- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
 -- @
 --
 -- Minimal complete definition: 'readVar'
@@ -104,22 +97,33 @@ instance ReadVar (TVar s) s where
 --    readVarIO = return . runIdentity
 
 {-
--- This might be very useful, but it does not fulfill the non-blocking
--- guarantee:
+-- This could be useful, but it does not guarantee the ReadVar properties:
 
-instance ReadVar STM where
+instance ReadVar (STM s) s where
     readVar = id
     readVarIO = atomically
+
+-- The purpose of ReadVar is to offer tighter semantic constraints than general
+-- STM.
 -}
 
 
--- | This class represents an STM transaction that modifies a shared state.
--- 'editVar' must not block, but it may do nothing when the state is not
--- present.
+-- | This class represents modifiable shared state.
+-- 'editVar' must not block. However, it may still be defined for types with 
+-- potentially absent values, e.g. 'TMVar'.
 --
 -- @
 -- 'editVar' v f >> 'editVar' v g === 'editVar' v (g . f)
 -- 'editVar'' v f = 'editVar' v $! f
+-- @
+--
+-- If a type is also an instance of 'ReadVar', the following
+-- must hold:
+--
+-- @
+-- do 'editVar' v f   ===   do s <- 'readVar' v
+--    'readVar' v              'editVar' v f
+--                           return (f s)
 -- @
 --
 -- Minimal complete definition: 'editVar'
@@ -143,18 +147,25 @@ instance EditVar (Edit s) s where
     editVar = runEdit
 
 
--- | This class represents an STM transaction that stores a shared state.
+-- | This class represents a shared value that may be replaced.
 -- 'writeVar' must not block.
 --
 -- @
 -- 'writeVar' v s === 'writeVar' v a >> 'writeVar' v s
 -- @
 --
--- If a type is an instance of both 'EditVar' and 'WriteVar', the following
--- must hold:
+-- If a type is also an instance of 'EditVar', the following must hold:
 --
 -- @
 -- 'writeVar' v a === 'editVar' v (const a)
+-- @
+--
+-- If a type is also an instance of 'ReadVar', the following
+-- must hold:
+--
+-- @
+-- 'readVar' v >>= 'writeVar' v === return ()
+-- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
 -- @
 --
 class WriteVar v s where
@@ -173,12 +184,20 @@ instance WriteVar (Write s) s where
     writeVar = runWrite
 
 
+-- | Read the value of the variable in a monadic context.
+--
+-- For the @((->) v)@ instance of @(MonadReader v m)@, 'askVar' is equivalent
+-- to 'readVar'.
 askVar :: (ReadVar v s, MonadReader v m) => m (STM s)
 askVar = asking readVar
 
 askVarIO :: (ReadVar v s, MonadReader v m) => m (IO s)
 askVarIO = asking readVarIO
 
+-- | Write to the variable in a monadic context.
+--
+-- For the @((->) v)@ instance of @(MonadReader v m)@, 'putVar' is equivalent
+-- to @flip 'writeVar'@.
 putVar :: (WriteVar v s, MonadReader v m) => s -> m (STM ())
 putVar = asking . flip writeVar
 
@@ -212,8 +231,7 @@ joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
 joinSTM m = liftSTM =<< m
 
 
--- | Determine if a TMVar is not empty, and if not, apply a function to its
--- value.
+-- | Determine if a TMVar is not empty, and if not, modify its value.
 tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
 tryModifyTMVar v f = do
     mx <- tryTakeTMVar v
