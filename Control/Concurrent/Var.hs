@@ -15,9 +15,9 @@ working with values that may be replaced, modified, and retrieved.
 
 It also provides two abstract types:
 
-* 'Edit'  - "Modify-only" variable isomorphic to @(s -> s) -> STM ()@
+* 'Edit'  - \"Modify-only\" variable isomorphic to @(s -> s) -> STM ()@
 
-* 'Write' - "Replace-only" variable isomorphic to @s -> STM ()@
+* 'Write' - \"Replace-only\" variable isomorphic to @s -> STM ()@
 -}
 
 module Control.Concurrent.Var (
@@ -30,13 +30,13 @@ module Control.Concurrent.Var (
  , ReadVar ( readVar, readVarIO )
  , askVar
  , askVarIO
- -- * Writing
- , WriteVar ( writeVar )
- , putVar
  -- * Editing
  , EditVar ( editVar , editVar' )
  , modifyVar
  , modifyVar'
+ -- * Writing
+ , WriteVar ( writeVar )
+ , putVar
  -- * Utilities
  , joinSTM
  , tryModifyTMVar
@@ -57,7 +57,7 @@ import Control.Monad.STM.Class
 -- There is no way to observe the internal state.
 newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
--- | Encapsulate an editable variable in an @Edit v@ so that it cannot be observed.
+-- | Encapsulate an editable variable in an @Edit v@.
 edit :: (EditVar v) => v s -> Edit s
 edit = Edit . editVar
 
@@ -65,7 +65,7 @@ edit = Edit . editVar
 -- | An abstract type representing a shared state that can be replaced.
 newtype Write s = Write { runWrite :: s -> STM () }
 
--- | Encapsulate a value in a @Write v@ so that it can only be replaced.
+-- | Encapsulate a writable variable in a @Write v@.
 write :: (WriteVar v) => v s -> Write s
 write = Write . writeVar
 
@@ -125,6 +125,7 @@ instance ReadVar STM where
 class EditVar v where
     editVar  :: v s -> (s -> s) -> STM ()
 
+    -- | A strict version of 'editVar'
     editVar' :: v s -> (s -> s) -> STM ()
     editVar' v f = editVar v $! f
 
@@ -187,16 +188,22 @@ modifyVar' :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
 modifyVar' = asking . flip editVar'
 
 
--- | Joins the 'STM' output from a 'MonadSTM' transformer stack with the
--- stack itself.
+-- | Join the 'STM' output of a monad transformer stack with the stack itself.
+-- Note that due to the 'MonadSTM' context this will work with a base monad
+-- of either 'STM' or 'IO'.
 --
--- example:
+-- examples:
 --
 -- @
--- f :: Int -> ReaderT (Edit Int) STM (STM Int)
--- f x = fmap (+x) getVar
+-- -- Return one plus the internal Int
+-- readPlusOne :: ReaderT (TVar Int) STM Int
+-- readPlusOne = fmap (+1) (joinSTM askVar)
+-- @
 --
--- joinSTM . f :: Int -> ReaderT (Edit Int) STM Int
+-- @
+-- -- Add to the internal Int
+-- addN :: Int -> ReaderT (Edit Int) IO ()
+-- addN n = joinSTM $ modifyVar (+ n)
 -- @
 --
 joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
