@@ -59,7 +59,7 @@ import Control.Monad.STM.Class
 -- There is no way to observe the internal state.
 newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
--- | Encapsulate an editable variable in an @Edit v@.
+-- | Encapsulate any @EditVar v s@ in an @Edit s@.
 edit :: (EditVar v s) => v -> Edit s
 edit = Edit . editVar
 
@@ -67,7 +67,7 @@ edit = Edit . editVar
 -- | An abstract type representing a shared state that can be replaced.
 newtype Write s = Write { runWrite :: s -> STM () }
 
--- | Encapsulate a writable variable in a @Write v@.
+-- | Encapsulate any @WriteVar v s@ in a @Write s@.
 write :: (WriteVar v s) => v -> Write s
 write = Write . writeVar
 
