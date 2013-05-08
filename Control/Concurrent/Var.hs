@@ -231,7 +231,8 @@ joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
 joinSTM m = liftSTM =<< m
 
 
--- | Determine if a TMVar is not empty, and if not, modify its value.
+-- | Modify the value of the 'TMVar' if it is non-empty. Returns True if
+-- the modification was applied, or False if the 'TMVar' is empty.
 tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
 tryModifyTMVar v f = do
     mx <- tryTakeTMVar v
