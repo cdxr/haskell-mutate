@@ -1,6 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 {-|
 Module      : Control.Concurrent.Var
@@ -59,16 +57,16 @@ import Control.Monad.STM.Class
 -- There is no way to observe the internal state.
 newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
 
--- | Encapsulate any @EditVar v s@ in an @Edit s@.
-edit :: (EditVar v s) => v -> Edit s
+-- | Encapsulate an @EditVar@ in an @Edit@.
+edit :: (EditVar v) => v s -> Edit s
 edit = Edit . editVar
 
 
 -- | An abstract type representing a shared state that can be replaced.
 newtype Write s = Write { runWrite :: s -> STM () }
 
--- | Encapsulate any @WriteVar v s@ in a @Write s@.
-write :: (WriteVar v s) => v -> Write s
+-- | Encapsulate a @WriteVar@ in a @Write@.
+write :: (WriteVar v) => v s -> Write s
 write = Write . writeVar
 
 
@@ -82,13 +80,13 @@ write = Write . writeVar
 --
 -- Minimal complete definition: 'readVar'
 --
-class ReadVar v s | v -> s where
-    readVar   :: v -> STM s
+class ReadVar v where
+    readVar   :: v s -> STM s
 
-    readVarIO :: v -> IO s
+    readVarIO :: v s -> IO s
     readVarIO = atomically . readVar
 
-instance ReadVar (TVar s) s where
+instance ReadVar TVar where
     readVar = readTVar
     readVarIO = readTVarIO
 
@@ -128,22 +126,22 @@ instance ReadVar (STM s) s where
 --
 -- Minimal complete definition: 'editVar'
 --
-class EditVar v s | v -> s where
-    editVar  :: v -> (s -> s) -> STM ()
+class EditVar v where
+    editVar  :: v s -> (s -> s) -> STM ()
 
     -- | A strict version of 'editVar'
-    editVar' :: v -> (s -> s) -> STM ()
+    editVar' :: v s -> (s -> s) -> STM ()
     editVar' v f = editVar v $! f
 
-instance EditVar (TVar s) s where
+instance EditVar TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
-instance EditVar (TMVar s) s where
+instance EditVar TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
 
-instance EditVar (Edit s) s where
+instance EditVar Edit where
     editVar = runEdit
 
 
@@ -168,44 +166,44 @@ instance EditVar (Edit s) s where
 -- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
 -- @
 --
-class WriteVar v s where
-    writeVar :: v -> s -> STM ()
+class WriteVar v where
+    writeVar :: v s -> s -> STM ()
 
-instance WriteVar (TVar s) s where
+instance WriteVar TVar where
     writeVar = writeTVar
 
-instance WriteVar (TMVar s) s where
+instance WriteVar TMVar where
     writeVar v = void . tryPutTMVar v
 
-instance WriteVar (Edit s) s where
+instance WriteVar Edit where
     writeVar v = editVar v . const
 
-instance WriteVar (Write s) s where
+instance WriteVar Write where
     writeVar = runWrite
 
 
 -- | Read the value of the variable in a monadic context.
 --
--- For the @((->) v)@ instance of @(MonadReader v m)@, 'askVar' is equivalent
+-- For the @(->)@ instance of @MonadReader@, 'askVar' is equivalent
 -- to 'readVar'.
-askVar :: (ReadVar v s, MonadReader v m) => m (STM s)
+askVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
 askVar = asking readVar
 
-askVarIO :: (ReadVar v s, MonadReader v m) => m (IO s)
+askVarIO :: (ReadVar v, MonadReader (v s) m) => m (IO s)
 askVarIO = asking readVarIO
 
 -- | Write to the variable in a monadic context.
 --
--- For the @((->) v)@ instance of @(MonadReader v m)@, 'putVar' is equivalent
+-- For the @(->)@ instance of @MonadReader@, 'putVar' is equivalent
 -- to @flip 'writeVar'@.
-putVar :: (WriteVar v s, MonadReader v m) => s -> m (STM ())
+putVar :: (WriteVar v, MonadReader (v s) m) => s -> m (STM ())
 putVar = asking . flip writeVar
 
-modifyVar :: (EditVar v s, MonadReader v m) => (s -> s) -> m (STM ())
+modifyVar :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
 modifyVar = asking . flip editVar
 
 -- | A strict version of 'modifyVar'
-modifyVar' :: (EditVar v s, MonadReader v m) => (s -> s) -> m (STM ())
+modifyVar' :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
 modifyVar' = asking . flip editVar'
 
 
