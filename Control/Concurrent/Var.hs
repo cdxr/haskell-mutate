@@ -1,3 +1,6 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 {-|
@@ -27,9 +30,8 @@ module Control.Concurrent.Var (
  , Write
  , write
  -- * Reading
- , ReadVar ( readVar, readVarIO )
+ , ReadVar ( readVar )
  , askVar
- , askVarIO
  -- * Editing
  , EditVar ( editVar , editVar' )
  , modifyVar
@@ -38,7 +40,7 @@ module Control.Concurrent.Var (
  , WriteVar ( writeVar )
  , putVar
  -- * Utilities
- , joinSTM
+ , tryModifyMVar
  , tryModifyTMVar
 ) where
 
@@ -46,27 +48,30 @@ module Control.Concurrent.Var (
 import Control.Monad
 import Control.Monad.Reader.Class
 
+import Data.IORef
+import Control.Concurrent.MVar
+
 import Control.Concurrent.STM ( STM, atomically )
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar ( TMVar, tryTakeTMVar, tryPutTMVar )
 
-import Control.Monad.STM.Class
 
-
--- | An abstract type representing a shared state that can be modified.
--- There is no way to observe the internal state.
-newtype Edit s = Edit { runEdit :: (s -> s) -> STM () }
+-- | @Edit m s@ represents a shared state @s@ that can be modified in
+-- a monad @m@.
+-- There is no way to observe the internal state in general.
+newtype Edit m s = Edit { runEdit :: (s -> s) -> m () }
 
 -- | Encapsulate an @EditVar@ in an @Edit@.
-edit :: (EditVar v) => v s -> Edit s
+edit :: (EditVar m v) => v s -> Edit m s
 edit = Edit . editVar
 
 
--- | An abstract type representing a shared state that can be replaced.
-newtype Write s = Write { runWrite :: s -> STM () }
+-- | @Write m s@ represents a shared state @s@ that can be written to in a
+-- monad @m@.
+newtype Write m s = Write { runWrite :: s -> m () }
 
 -- | Encapsulate a @WriteVar@ in a @Write@.
-write :: (WriteVar v) => v s -> Write s
+write :: (WriteVar m v) => v s -> Write m s
 write = Write . writeVar
 
 
@@ -75,31 +80,25 @@ write = Write . writeVar
 --
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
--- 'readVarIO' = 'atomically' . 'readVar'
 -- @
 --
--- Minimal complete definition: 'readVar'
---
-class ReadVar v where
-    readVar   :: v s -> STM s
+class ReadVar m v | v -> m where
+    readVar   :: v s -> m s
 
-    readVarIO :: v s -> IO s
-    readVarIO = atomically . readVar
+instance ReadVar IO IORef where
+    readVar = readIORef
 
-instance ReadVar TVar where
+instance ReadVar STM TVar where
     readVar = readTVar
-    readVarIO = readTVarIO
 
 --instance ReadVar Identity where
 --    readVar   = return . runIdentity
---    readVarIO = return . runIdentity
 
 {-
 -- This could be useful, but it does not guarantee the ReadVar properties:
 
 instance ReadVar (STM s) s where
     readVar = id
-    readVarIO = atomically
 
 -- The purpose of ReadVar is to offer tighter semantic constraints than general
 -- STM.
@@ -125,23 +124,30 @@ instance ReadVar (STM s) s where
 -- @
 --
 -- Minimal complete definition: 'editVar'
---
-class EditVar v where
-    editVar  :: v s -> (s -> s) -> STM ()
+  
+class EditVar m v | v -> m where
+    editVar  :: v s -> (s -> s) -> m ()
 
     -- | A strict version of 'editVar'
-    editVar' :: v s -> (s -> s) -> STM ()
+    editVar' :: v s -> (s -> s) -> m ()
     editVar' v f = editVar v $! f
 
-instance EditVar TVar where
+instance EditVar IO IORef where
+    editVar  = modifyIORef
+    editVar' = modifyIORef'
+
+instance EditVar IO MVar where
+    editVar v = void . tryModifyMVar v
+
+instance EditVar STM TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
-instance EditVar TMVar where
+instance EditVar STM TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
 
-instance EditVar Edit where
+instance EditVar m (Edit m) where
     editVar = runEdit
 
 
@@ -166,19 +172,22 @@ instance EditVar Edit where
 -- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
 -- @
 --
-class WriteVar v where
-    writeVar :: v s -> s -> STM ()
+class WriteVar m v | v -> m where
+    writeVar :: v s -> s -> m ()
 
-instance WriteVar TVar where
+instance WriteVar IO IORef where
+    writeVar = writeIORef
+
+instance WriteVar STM TVar where
     writeVar = writeTVar
 
-instance WriteVar TMVar where
+instance WriteVar STM TMVar where
     writeVar v = void . tryPutTMVar v
 
-instance WriteVar Edit where
+instance WriteVar m (Edit m) where
     writeVar v = editVar v . const
 
-instance WriteVar Write where
+instance WriteVar m (Write m) where
     writeVar = runWrite
 
 
@@ -186,50 +195,40 @@ instance WriteVar Write where
 --
 -- For the @(->)@ instance of @MonadReader@, 'askVar' is equivalent
 -- to 'readVar'.
-askVar :: (ReadVar v, MonadReader (v s) m) => m (STM s)
-askVar = asking readVar
-
-askVarIO :: (ReadVar v, MonadReader (v s) m) => m (IO s)
-askVarIO = asking readVarIO
+askVar :: (ReadVar m v, MonadReader (v s) m) => m s
+askVar = readVar =<< ask
 
 -- | Write to the variable in a monadic context.
 --
 -- For the @(->)@ instance of @MonadReader@, 'putVar' is equivalent
 -- to @flip 'writeVar'@.
-putVar :: (WriteVar v, MonadReader (v s) m) => s -> m (STM ())
-putVar = asking . flip writeVar
+putVar :: (WriteVar m v, MonadReader (v s) m) => s -> m ()
+putVar s = do
+    v <- ask
+    writeVar v s
 
-modifyVar :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
-modifyVar = asking . flip editVar
+modifyVar :: (EditVar m v, MonadReader (v s) m) => (s -> s) -> m ()
+modifyVar f = do
+    v <- ask
+    editVar v f
 
 -- | A strict version of 'modifyVar'
-modifyVar' :: (EditVar v, MonadReader (v s) m) => (s -> s) -> m (STM ())
-modifyVar' = asking . flip editVar'
+modifyVar' :: (EditVar m v, MonadReader (v s) m) => (s -> s) -> m ()
+modifyVar' f = do
+    v <- ask
+    editVar' v f
 
 
--- | Join the 'STM' output of a monad transformer stack with the stack itself.
--- Note that due to the 'MonadSTM' context this will work with a base monad
--- of either 'STM' or 'IO'.
---
--- examples:
---
--- @
--- -- Return one plus the internal Int
--- readPlusOne :: ReaderT (TVar Int) STM Int
--- readPlusOne = fmap (+1) (joinSTM askVar)
--- @
---
--- @
--- -- Add to the internal Int
--- addN :: Int -> ReaderT (Edit Int) IO ()
--- addN n = joinSTM $ modifyVar (+ n)
--- @
---
-joinSTM :: (MonadSTM m, Monad m) => m (STM a) -> m a
-joinSTM m = liftSTM =<< m
+-- | Modify the value of an 'MVar' if it is non-empty. Returns True if
+-- the modification was applied, or False if the 'MVar' is empty.
+tryModifyMVar :: MVar a -> (a -> a) -> IO Bool
+tryModifyMVar v f = do
+    mx <- tryTakeMVar v
+    case mx of
+        Just x -> tryPutMVar v (f x)
+        Nothing -> return False
 
-
--- | Modify the value of the 'TMVar' if it is non-empty. Returns True if
+-- | Modify the value of a 'TMVar' if it is non-empty. Returns True if
 -- the modification was applied, or False if the 'TMVar' is empty.
 tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
 tryModifyTMVar v f = do
@@ -237,9 +236,3 @@ tryModifyTMVar v f = do
     case mx of
         Just x -> tryPutTMVar v (f x)
         Nothing -> return False
-
-------------------------------------------------------------------------------
--- Local Helpers
-
-asking :: (MonadReader e m) => (e -> r) -> m r
-asking f = liftM f ask
