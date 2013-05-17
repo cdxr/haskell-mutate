@@ -125,7 +125,7 @@ instance ReadVar (STM s) s where
 --
 -- Minimal complete definition: 'editVar'
   
-class EditVar m v | v -> m where
+class (WriteVar m v) => EditVar m v | v -> m where
     editVar  :: v s -> (s -> s) -> m ()
 
     -- | A strict version of 'editVar'
@@ -136,8 +136,8 @@ instance EditVar IO IORef where
     editVar  = modifyIORef
     editVar' = modifyIORef'
 
-instance EditVar IO MVar where
-    editVar v = void . tryModifyMVar v
+--instance EditVar IO MVar where
+--    editVar v = void . tryModifyMVar v
 
 instance EditVar STM TVar where
     editVar  = modifyTVar
