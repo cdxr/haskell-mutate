@@ -51,9 +51,10 @@ import Control.Monad.Reader.Class
 import Data.IORef
 import Control.Concurrent.MVar
 
-import Control.Concurrent.STM ( STM, atomically )
+import Control.Concurrent.STM ( STM )
 import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar ( TMVar, tryTakeTMVar, tryPutTMVar )
+import Control.Concurrent.STM.TMVar
+import Control.Monad.Base
 
 
 -- | @Edit m s@ represents a shared state @s@ that can be modified in
@@ -83,13 +84,20 @@ write = Write . writeVar
 -- @
 --
 class ReadVar m v | v -> m where
-    readVar   :: v s -> m s
+    readVar :: v s -> m s
 
 instance ReadVar IO IORef where
     readVar = readIORef
 
 instance ReadVar STM TVar where
     readVar = readTVar
+
+{-
+-- This instance would require UndecidableInstances
+
+instance (MonadIO m, MonadPlus m) => ReadVar m MVar where
+    readVar = maybe mzero return =<< tryTakeMVar
+-}
 
 --instance ReadVar Identity where
 --    readVar   = return . runIdentity
@@ -195,28 +203,23 @@ instance WriteVar m (Write m) where
 --
 -- For the @(->)@ instance of @MonadReader@, 'askVar' is equivalent
 -- to 'readVar'.
-askVar :: (ReadVar m v, MonadReader (v s) m) => m s
-askVar = readVar =<< ask
+askVar :: (MonadBase bm m, ReadVar bm v, MonadReader (v s) m) => m s
+askVar = liftBase . readVar =<< ask
 
 -- | Write to the variable in a monadic context.
 --
 -- For the @(->)@ instance of @MonadReader@, 'putVar' is equivalent
 -- to @flip 'writeVar'@.
-putVar :: (WriteVar m v, MonadReader (v s) m) => s -> m ()
-putVar s = do
-    v <- ask
-    writeVar v s
+putVar :: (MonadBase bm m, WriteVar bm v) => s -> v s -> m ()
+putVar s v = liftBase $ writeVar v s
 
-modifyVar :: (EditVar m v, MonadReader (v s) m) => (s -> s) -> m ()
-modifyVar f = do
-    v <- ask
-    editVar v f
+modifyVar :: (MonadBase bm m, EditVar bm v) => (s -> s) -> v s -> m ()
+modifyVar f v = liftBase $ editVar v f
 
 -- | A strict version of 'modifyVar'
-modifyVar' :: (EditVar m v, MonadReader (v s) m) => (s -> s) -> m ()
-modifyVar' f = do
-    v <- ask
-    editVar' v f
+modifyVar' :: (MonadBase bm m, EditVar bm v) => (s -> s) -> v s -> m ()
+modifyVar' f v = liftBase $ editVar' v f
+
 
 
 -- | Modify the value of an 'MVar' if it is non-empty. Returns True if
