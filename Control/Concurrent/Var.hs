@@ -18,9 +18,9 @@ working with values that may be replaced, modified, and retrieved.
 
 It also provides two abstract types:
 
-* 'Edit'  - \"Modify-only\" variable isomorphic to @(s -> s) -> STM ()@
+* 'Edit' m s - \"Modify-only\" variable isomorphic to @(s -> s) -> m ()@
 
-* 'Write' - \"Replace-only\" variable isomorphic to @s -> STM ()@
+* 'Write' m s - \"Replace-only\" variable isomorphic to @s -> m ()@
 -}
 
 module Control.Concurrent.Var (
