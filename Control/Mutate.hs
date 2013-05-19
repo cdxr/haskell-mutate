@@ -124,13 +124,6 @@ instance WriteVar IO IORef where
 instance WriteVar STM TVar where
     writeVar = writeTVar
 
-{-
--- I need to verify that this satisfies the laws
-
-instance WriteVar STM TMVar where
-    writeVar v = void . tryPutTMVar v
--}
-
 instance WriteVar m (Edit m) where
     writeVar v = editVar v . const
 
@@ -149,7 +142,7 @@ instance WriteVar m (Write m) where
 -- @
 --
 -- Minimal complete definition: 'editVar'
-  
+--
 class (WriteVar m v) => EditVar m v | v -> m where
     editVar  :: v s -> (s -> s) -> m ()
 
@@ -165,8 +158,12 @@ instance EditVar STM TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
+instance EditVar m (Edit m) where
+    editVar = runEdit
 
 {-
+These instances do not satisfy the WriteVar superclass.
+
 instance EditVar IO MVar where
     editVar v = void . tryModifyMVar v
 
@@ -174,9 +171,6 @@ instance EditVar STM TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
 -}
-
-instance EditVar m (Edit m) where
-    editVar = runEdit
 
 
 -- | Read the value of the variable in a monadic context.
@@ -199,7 +193,6 @@ modifyVar f v = liftBase $ editVar v f
 -- | A strict version of 'modifyVar'
 modifyVar' :: (MonadBase b m, EditVar b v) => (s -> s) -> v s -> m ()
 modifyVar' f v = liftBase $ editVar' v f
-
 
 
 -- | Modify the value of an 'MVar' if it is non-empty. Returns True if

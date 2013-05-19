@@ -1,11 +1,26 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
+{-|
+Module      : Control.Mutate.State
+Copyright   : (c) Craig Roche 2013
+License     : BSD-style
+
+Maintainer  : cdxr01@gmail.com
+Stability   : experimental
+Portability : non-portable
+
+This module provides the abstract monad transformer 'VarState'.
+@VarState s m@ represents a state value of type @s@ that can be modified in
+a monad @m@.
+-}
+
 module Control.Mutate.State
 (
   VarState
-, varState 
+, runVarState 
 , (%:) 
+, module Control.Monad.State.Class
 )
 where
 
@@ -61,11 +76,23 @@ instance (Monad m) => (MonadState s (VarState s m)) where
     put = VS . flip writeVar
 
 
-varState :: (MonadBase b m, ReadVar b v, WriteVar b v)
+runVarState :: (MonadBase b m, ReadVar b v, WriteVar b v)
          => VarState s m a -> v s -> m a
-varState (VS f) = f . mkVar
+runVarState (VS f) = f . mkVar
 
 
+-- | An infix version of runVarState. This facilitates the use of
+-- MonadState computations to modify any instance of ReadVar and WriteVar.
+--
+-- Example:
+--
+-- > var <- newIORef (2,3)
+-- > var %: do
+-- >    a <- gets fst
+-- >    put (5,8)
+-- >    modify $ \(x,y) -> (x,a)
+-- > print =<< readIORef var  -- prints (5,2)
+-- 
 (%:) :: (MonadBase b m, ReadVar b v, WriteVar b v)
      => v s -> VarState s m a -> m a
-(%:) = flip varState
+(%:) = flip runVarState
