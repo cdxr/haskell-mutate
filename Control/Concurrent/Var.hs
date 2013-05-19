@@ -12,15 +12,15 @@ Maintainer  : cdxr01@gmail.com
 Stability   : experimental
 Portability : non-portable
 
-This module provides combinators for working with shared mutable state. It
-defines the typeclasses 'WriteVar', 'EditVar', and 'ReadVar', for
-working with values that may be replaced, modified, and retrieved.
+This module provides abstractions for working with variables that are mutable
+over a particular base monad. It defines the typeclasses 'WriteVar', 'EditVar',
+and 'ReadVar', representing values that may be replaced, modified, and retrieved.
 
 It also provides two abstract types:
 
-* 'Edit' m s - \"Modify-only\" variable isomorphic to @(s -> s) -> m ()@
+* 'Edit' m s - \"Modify-only\" variables isomorphic to @(s -> s) -> m ()@
 
-* 'Write' m s - \"Replace-only\" variable isomorphic to @s -> m ()@
+* 'Write' m s - \"Replace-only\" variables isomorphic to @s -> m ()@
 -}
 
 module Control.Concurrent.Var (
@@ -32,13 +32,13 @@ module Control.Concurrent.Var (
  -- * Reading
  , ReadVar ( readVar )
  , askVar
- -- * Editing
- , EditVar ( editVar , editVar' )
- , modifyVar
- , modifyVar'
  -- * Writing
  , WriteVar ( writeVar )
  , putVar
+ -- * Editing
+ , EditVar ( editVar, editVar' )
+ , modifyVar
+ , modifyVar'
  -- * Utilities
  , tryModifyMVar
  , tryModifyTMVar
@@ -57,8 +57,7 @@ import Control.Concurrent.STM.TMVar
 import Control.Monad.Base
 
 
--- | @Edit m s@ represents a shared state @s@ that can be modified in
--- a monad @m@.
+-- | @Edit m s@ represents a state @s@ that is mutable in a monad @m@.
 -- There is no way to observe the internal state in general.
 newtype Edit m s = Edit { runEdit :: (s -> s) -> m () }
 
@@ -76,8 +75,9 @@ write :: (WriteVar m v) => v s -> Write m s
 write = Write . writeVar
 
 
--- | This class represents shared observable state.
+-- | This class represents observable state.
 -- 'readVar' must not modify any values, and must not block.
+--
 --
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
@@ -113,22 +113,48 @@ instance ReadVar (STM s) s where
 -}
 
 
--- | This class represents modifiable shared state.
--- 'editVar' must not block. However, it may still be defined for types with 
--- potentially absent values, e.g. 'TMVar'.
+-- | This class represents a shared value that may be replaced.
+-- 'writeVar' must not block.
 --
 -- @
--- 'editVar' v f >> 'editVar' v g === 'editVar' v (g . f)
--- 'editVar'' v f = 'editVar' v $! f
+-- 'writeVar' v s === 'writeVar' v a >> 'writeVar' v s
 -- @
 --
 -- If a type is also an instance of 'ReadVar', the following
 -- must hold:
 --
 -- @
--- do 'editVar' v f   ===   do s <- 'readVar' v
---    'readVar' v              'editVar' v f
---                           return (f s)
+-- 'readVar' v >>= 'writeVar' v === return ()
+-- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
+-- @
+--
+class WriteVar m v | v -> m where
+    writeVar :: v s -> s -> m ()
+
+instance WriteVar IO IORef where
+    writeVar = writeIORef
+
+instance WriteVar STM TVar where
+    writeVar = writeTVar
+
+instance WriteVar STM TMVar where
+    writeVar v = void . tryPutTMVar v
+
+instance WriteVar m (Edit m) where
+    writeVar v = editVar v . const
+
+instance WriteVar m (Write m) where
+    writeVar = runWrite
+
+
+-- | This class represents modifiable shared state.
+-- 'editVar' must not block. However, it may still be defined for types with 
+-- potentially absent values, e.g. 'TMVar'.
+--
+-- @
+-- 'writeVar' v a === 'editVar' v (const a)
+-- 'editVar' v f >> 'editVar' v g === 'editVar' v (g . f)
+-- 'editVar'' v f = 'editVar' v $! f
 -- @
 --
 -- Minimal complete definition: 'editVar'
@@ -159,65 +185,25 @@ instance EditVar m (Edit m) where
     editVar = runEdit
 
 
--- | This class represents a shared value that may be replaced.
--- 'writeVar' must not block.
---
--- @
--- 'writeVar' v s === 'writeVar' v a >> 'writeVar' v s
--- @
---
--- If a type is also an instance of 'EditVar', the following must hold:
---
--- @
--- 'writeVar' v a === 'editVar' v (const a)
--- @
---
--- If a type is also an instance of 'ReadVar', the following
--- must hold:
---
--- @
--- 'readVar' v >>= 'writeVar' v === return ()
--- 'writeVar' v a >> 'readVar' v === 'writeVar' v a >> return a
--- @
---
-class WriteVar m v | v -> m where
-    writeVar :: v s -> s -> m ()
-
-instance WriteVar IO IORef where
-    writeVar = writeIORef
-
-instance WriteVar STM TVar where
-    writeVar = writeTVar
-
-instance WriteVar STM TMVar where
-    writeVar v = void . tryPutTMVar v
-
-instance WriteVar m (Edit m) where
-    writeVar v = editVar v . const
-
-instance WriteVar m (Write m) where
-    writeVar = runWrite
-
-
 -- | Read the value of the variable in a monadic context.
 --
 -- For the @(->)@ instance of @MonadReader@, 'askVar' is equivalent
 -- to 'readVar'.
-askVar :: (MonadBase bm m, ReadVar bm v, MonadReader (v s) m) => m s
+askVar :: (MonadBase b m, ReadVar b v, MonadReader (v s) m) => m s
 askVar = liftBase . readVar =<< ask
 
 -- | Write to the variable in a monadic context.
 --
 -- For the @(->)@ instance of @MonadReader@, 'putVar' is equivalent
 -- to @flip 'writeVar'@.
-putVar :: (MonadBase bm m, WriteVar bm v) => s -> v s -> m ()
+putVar :: (MonadBase b m, WriteVar b v) => s -> v s -> m ()
 putVar s v = liftBase $ writeVar v s
 
-modifyVar :: (MonadBase bm m, EditVar bm v) => (s -> s) -> v s -> m ()
+modifyVar :: (MonadBase b m, EditVar b v) => (s -> s) -> v s -> m ()
 modifyVar f v = liftBase $ editVar v f
 
 -- | A strict version of 'modifyVar'
-modifyVar' :: (MonadBase bm m, EditVar bm v) => (s -> s) -> v s -> m ()
+modifyVar' :: (MonadBase b m, EditVar b v) => (s -> s) -> v s -> m ()
 modifyVar' f v = liftBase $ editVar' v f
 
 
