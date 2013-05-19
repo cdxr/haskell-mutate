@@ -58,7 +58,7 @@ import Control.Monad.Base
 
 
 -- | @Edit m s@ represents a state @s@ that is mutable in a monad @m@.
--- There is no way to observe the internal state in general.
+-- There is no way to observe the internal state.
 newtype Edit m s = Edit { runEdit :: (s -> s) -> m () }
 
 -- | Encapsulate an @EditVar@ in an @Edit@.
@@ -78,7 +78,6 @@ write = Write . writeVar
 -- | This class represents observable state.
 -- 'readVar' must not modify any values, and must not block.
 --
---
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
 -- @
@@ -92,24 +91,12 @@ instance ReadVar IO IORef where
 instance ReadVar STM TVar where
     readVar = readTVar
 
-{-
--- This instance would require UndecidableInstances
-
-instance (MonadIO m, MonadPlus m) => ReadVar m MVar where
-    readVar = maybe mzero return =<< tryTakeMVar
--}
-
---instance ReadVar Identity where
---    readVar   = return . runIdentity
 
 {-
--- This could be useful, but it does not guarantee the ReadVar properties:
+-- This might be useful, but it does not guarantee the ReadVar properties:
 
-instance ReadVar (STM s) s where
+instance ReadVar STM STM where
     readVar = id
-
--- The purpose of ReadVar is to offer tighter semantic constraints than general
--- STM.
 -}
 
 
@@ -137,8 +124,12 @@ instance WriteVar IO IORef where
 instance WriteVar STM TVar where
     writeVar = writeTVar
 
+{-
+-- I need to verify that this satisfies the laws
+
 instance WriteVar STM TMVar where
     writeVar v = void . tryPutTMVar v
+-}
 
 instance WriteVar m (Edit m) where
     writeVar v = editVar v . const
@@ -170,16 +161,19 @@ instance EditVar IO IORef where
     editVar  = modifyIORef
     editVar' = modifyIORef'
 
---instance EditVar IO MVar where
---    editVar v = void . tryModifyMVar v
-
 instance EditVar STM TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
  
+
+{-
+instance EditVar IO MVar where
+    editVar v = void . tryModifyMVar v
+
 instance EditVar STM TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
+-}
 
 instance EditVar m (Edit m) where
     editVar = runEdit
