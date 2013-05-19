@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 {-|
-Module      : Control.Concurrent.Var
+Module      : Control.Mutate
 Copyright   : (c) Craig Roche 2013
 License     : BSD-style
 
@@ -23,7 +23,7 @@ It also provides two abstract types:
 * 'Write' m s - \"Replace-only\" variables isomorphic to @s -> m ()@
 -}
 
-module Control.Concurrent.Var (
+module Control.Mutate (
  -- * Types
    Edit
  , edit
