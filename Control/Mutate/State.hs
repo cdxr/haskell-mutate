@@ -19,6 +19,7 @@ module Control.Mutate.State
 (
   VarState
 , runVarState 
+, askVarState
 , (%:) 
 , module Control.Monad.State.Class
 )
@@ -77,9 +78,12 @@ instance (Monad m) => (MonadState s (VarState s m)) where
 
 
 runVarState :: (MonadBase b m, ReadVar b v, WriteVar b v)
-         => VarState s m a -> v s -> m a
+            => VarState s m a -> v s -> m a
 runVarState (VS f) = f . mkVar
 
+askVarState :: (MonadBase b m, ReadVar b v, WriteVar b v, MonadReader (v s) m)
+            => VarState s m a -> m a
+askVarState m = runVarState m =<< ask
 
 -- | An infix version of runVarState. This facilitates the use of
 -- MonadState computations to modify any instance of ReadVar and WriteVar.
