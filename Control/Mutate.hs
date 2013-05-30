@@ -31,22 +31,15 @@ module Control.Mutate (
  , write
  -- * Reading
  , ReadVar ( readVar )
- , askVar
  -- * Writing
  , WriteVar ( writeVar )
- , putVar
  -- * Editing
  , EditVar ( editVar, editVar' )
- , modifyVar
- , modifyVar'
  -- * Utilities
  , tryModifyMVar
  , tryModifyTMVar
 ) where
 
-
-import Control.Monad
-import Control.Monad.Reader.Class
 
 import Data.IORef
 import Control.Concurrent.MVar
@@ -54,7 +47,6 @@ import Control.Concurrent.MVar
 import Control.Concurrent.STM ( STM )
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar
-import Control.Monad.Base
 
 
 -- | @Edit m s@ represents a state @s@ that is mutable in a monad @m@.
@@ -171,28 +163,6 @@ instance EditVar STM TMVar where
     -- maps the function over the stored value, if it exists
     editVar v = void . tryModifyTMVar v
 -}
-
-
--- | Read the value of the variable in a monadic context.
---
--- For the @(->)@ instance of @MonadReader@, 'askVar' is equivalent
--- to 'readVar'.
-askVar :: (MonadBase b m, ReadVar b v, MonadReader (v s) m) => m s
-askVar = liftBase . readVar =<< ask
-
--- | Write to the variable in a monadic context.
---
--- For the @(->)@ instance of @MonadReader@, 'putVar' is equivalent
--- to @flip 'writeVar'@.
-putVar :: (MonadBase b m, WriteVar b v) => s -> v s -> m ()
-putVar s v = liftBase $ writeVar v s
-
-modifyVar :: (MonadBase b m, EditVar b v) => (s -> s) -> v s -> m ()
-modifyVar f v = liftBase $ editVar v f
-
--- | A strict version of 'modifyVar'
-modifyVar' :: (MonadBase b m, EditVar b v) => (s -> s) -> v s -> m ()
-modifyVar' f v = liftBase $ editVar' v f
 
 
 -- | Modify the value of an 'MVar' if it is non-empty. Returns True if
