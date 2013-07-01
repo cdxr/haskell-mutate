@@ -1,7 +1,8 @@
 # Mutate
 
-`mutate` provides abstractions for variables that are mutable in a particular
-base monad. For example, TVar is mutable in STM, and IORef is mutable in IO.
+`mutate` is a Haskell package that provides abstractions for variables that are
+mutable in a particular base monad. For example, TVar is mutable in STM, and
+IORef is mutable in IO.
 
 Control.Mutate exports the typeclasses ReadVar, WriteVar, and EditVar for
 variables that support retrieving, overwriting, and modifying. Each typeclass
