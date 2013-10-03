@@ -9,6 +9,9 @@ variables that support retrieving, overwriting, and modifying. Each typeclass
 is parameterized over the variable type and the monad in which the variable is
 mutable.
 
+`Control.Mutate.Atomic` seeks to provide similar abstractions for concurrent
+state variables. It is currently in early development.
+
 
 ## motivation
 
@@ -38,10 +41,3 @@ provide an equivalent of `readIORef`, so this constraint guarantees that
 
 `Control.Mutate` provides a few related types and typeclasses enable further
 abstraction.
-
-
-## disadvantages
-
-`mutate` provides no abstractions for concurrency. Operations that block and
-concurrency primitives such as `MVar` are strictly ommitted. This significantly
-diminishes the scope and utility of this library.
