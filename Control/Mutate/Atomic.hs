@@ -42,6 +42,8 @@ class (Monad m) => AtomicVar m v | v -> m where
 readAtomic :: (AtomicVar m v) => v s -> m s
 readAtomic v = editAtomic v $ \s -> return (s, s)
 
+writeAtomic :: (AtomicVar m v) => v s -> s -> m ()
+writeAtomic v s = editAtomic_ v $ \_ -> return s
 
 stateAtomic :: (AtomicVar m v) => v s -> StateT s m a -> m a
 stateAtomic v = editAtomic v . runStateT
