@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
@@ -20,6 +22,10 @@ import Control.Concurrent.MVar
 
 import Data.Tuple ( swap )
 
+import Control.Mutate
+
+
+-- * AtomicVar
 
 -- | @Atomic m v@ indicates that the contents of the variable @v@ may be
 -- modified, replaced, or retrieved atomically in the monad @m@.
@@ -47,3 +53,36 @@ stateAtomic_ v = editAtomic_ v . execStateT
 instance AtomicVar IO MVar where
     editAtomic v f = modifyMVar v (liftM swap . f)
     editAtomic_ = modifyMVar_
+
+
+-- * Atomic
+
+newtype Atomic m s = Atomic { runAtomic :: forall a. (s -> m (a, s)) -> m a }
+
+
+-- | Create a new @Atomic IO s@. This is an `MVar` that is restricted to
+-- using only atomic operations (it is always full and every `takeMVar` is
+-- paired with a `putMVar`).
+newAtomicIO :: s -> IO (Atomic IO s)
+newAtomicIO s = do
+    v <- newMVar s
+    return $ Atomic $ editAtomic v
+
+
+-- | Create a locked resource from a readable and writable variable. The
+-- primary use of this function is to convert a `StateVar` into
+-- a concurrent resource.
+--
+-- This should not be used to convert an `IORef` to an `Atomic`. In that
+-- case, it is better to use an `MVar` or to create one with `newAtomicIO`.
+--
+-- WARNING: access to the variable is only atomic if all clients of the
+-- variable access it through this returned `Atomic` value.
+atomicLock :: (ReadVar IO v, WriteVar IO v) => v s -> IO (Atomic IO s)
+atomicLock v = do
+    lock <- newMVar ()
+    return $ Atomic $ \f ->
+        withMVar lock $ \_ -> do
+            (a, s') <- f =<< readVar v
+            writeVar v s'
+            return a
