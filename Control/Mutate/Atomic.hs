@@ -29,12 +29,17 @@ import Control.Mutate
 
 -- | @Atomic m v@ indicates that the contents of the variable @v@ may be
 -- modified, replaced, or retrieved atomically in the monad @m@.
--- Any use of the variable can block because another thread could be performing
--- an atomic operation.
+--
+-- Minimal complete definition: 'editVar'
 --
 class (Monad m) => AtomicVar m v | v -> m where
+    -- | @editAtomic v f@ is a computation that uses the computation @f@ to
+    -- atomically modify the contents of @v@ and output a value.
+    --
+    -- This will block if the variable @v@ is locked in another thread.
     editAtomic :: v s -> (s -> m (a, s)) -> m a
 
+    -- | A version of `editAtomic` that takes a computation with no output.
     editAtomic_ :: v s -> (s -> m s) -> m ()
     editAtomic_ v f = editAtomic v (liftM ((,) ()) . f)
 
