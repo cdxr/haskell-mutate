@@ -40,6 +40,9 @@ module Control.Mutate (
 
 import Data.IORef
 
+import Control.Monad.ST.Safe
+import Data.STRef
+
 import Control.Concurrent.STM ( STM )
 import Control.Concurrent.STM.TVar
 
@@ -75,6 +78,9 @@ class ReadVar m v | v -> m where
 instance ReadVar IO IORef where
     readVar = readIORef
 
+instance ReadVar (ST s) (STRef s) where
+    readVar = readSTRef
+
 instance ReadVar STM TVar where
     readVar = readTVar
 
@@ -100,6 +106,9 @@ class WriteVar m v | v -> m where
 instance WriteVar IO IORef where
     writeVar = writeIORef
 
+instance WriteVar (ST s) (STRef s) where
+    writeVar = writeSTRef
+
 instance WriteVar STM TVar where
     writeVar = writeTVar
 
@@ -110,7 +119,8 @@ instance WriteVar m (Write m) where
     writeVar = runWrite
 
 
--- | This class represents shared mutable state. 'editVar' must not block.
+-- | This class represents mutable state that can be mapped over.
+-- 'editVar' must not block.
 --
 -- @
 -- 'writeVar' v a === 'editVar' v (const a)
@@ -130,6 +140,10 @@ class (WriteVar m v) => EditVar m v | v -> m where
 instance EditVar IO IORef where
     editVar  = modifyIORef
     editVar' = modifyIORef'
+
+instance EditVar (ST s) (STRef s) where
+    editVar  = modifySTRef
+    editVar' = modifySTRef'
 
 instance EditVar STM TVar where
     editVar  = modifyTVar
