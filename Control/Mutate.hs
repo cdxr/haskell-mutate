@@ -35,22 +35,17 @@ module Control.Mutate (
  , WriteVar ( writeVar )
  -- * Editing
  , EditVar ( editVar, editVar' )
- -- * Utilities
- , tryModifyMVar
- , tryModifyTMVar
 ) where
 
 
 import Data.IORef
-import Control.Concurrent.MVar
 
 import Control.Concurrent.STM ( STM )
 import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 
 
 -- | @Edit m s@ represents a state @s@ that is mutable in a monad @m@.
--- There is no way to observe the internal state.
+-- @Edit@ does not provide a means to observe the internal state.
 newtype Edit m s = Edit { runEdit :: (s -> s) -> m () }
 
 -- | Encapsulate an @EditVar@ in an @Edit@.
@@ -84,14 +79,6 @@ instance ReadVar STM TVar where
     readVar = readTVar
 
 
-{-
--- This might be useful, but it does not guarantee the ReadVar properties:
-
-instance ReadVar STM STM where
-    readVar = id
--}
-
-
 -- | This class represents a shared value that may be replaced.
 -- 'writeVar' must not block.
 --
@@ -123,9 +110,7 @@ instance WriteVar m (Write m) where
     writeVar = runWrite
 
 
--- | This class represents modifiable shared state.
--- 'editVar' must not block. However, it may still be defined for types with 
--- potentially absent values, e.g. 'TMVar'.
+-- | This class represents shared mutable state. 'editVar' must not block.
 --
 -- @
 -- 'writeVar' v a === 'editVar' v (const a)
@@ -152,33 +137,3 @@ instance EditVar STM TVar where
  
 instance EditVar m (Edit m) where
     editVar = runEdit
-
-{-
-These instances do not satisfy the WriteVar superclass.
-
-instance EditVar IO MVar where
-    editVar v = void . tryModifyMVar v
-
-instance EditVar STM TMVar where
-    -- maps the function over the stored value, if it exists
-    editVar v = void . tryModifyTMVar v
--}
-
-
--- | Modify the value of an 'MVar' if it is non-empty. Returns True if
--- the modification was applied, or False if the 'MVar' is empty.
-tryModifyMVar :: MVar a -> (a -> a) -> IO Bool
-tryModifyMVar v f = do
-    mx <- tryTakeMVar v
-    case mx of
-        Just x -> tryPutMVar v (f x)
-        Nothing -> return False
-
--- | Modify the value of a 'TMVar' if it is non-empty. Returns True if
--- the modification was applied, or False if the 'TMVar' is empty.
-tryModifyTMVar :: TMVar a -> (a -> a) -> STM Bool
-tryModifyTMVar v f = do
-    mx <- tryTakeTMVar v
-    case mx of
-        Just x -> tryPutTMVar v (f x)
-        Nothing -> return False
