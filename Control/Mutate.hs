@@ -40,6 +40,8 @@ module Control.Mutate (
 
 import Data.IORef
 
+import Data.StateVar as StateVar
+
 import Control.Monad.ST.Safe
 import Data.STRef
 
@@ -84,6 +86,12 @@ instance ReadVar (ST s) (STRef s) where
 instance ReadVar STM TVar where
     readVar = readTVar
 
+instance ReadVar IO StateVar where
+    readVar = get
+
+instance ReadVar IO GettableStateVar where
+    readVar = get
+
 
 -- | This class represents a shared value that may be replaced.
 -- 'writeVar' must not block.
@@ -111,6 +119,12 @@ instance WriteVar (ST s) (STRef s) where
 
 instance WriteVar STM TVar where
     writeVar = writeTVar
+
+instance WriteVar IO SettableStateVar where
+    writeVar = ($=)
+
+instance WriteVar IO StateVar where
+    writeVar = ($=)
 
 instance WriteVar m (Edit m) where
     writeVar v = editVar v . const
@@ -148,6 +162,10 @@ instance EditVar (ST s) (STRef s) where
 instance EditVar STM TVar where
     editVar  = modifyTVar
     editVar' = modifyTVar'
+
+instance EditVar IO StateVar where
+    editVar  = ($~)
+    editVar' = ($~!)
  
 instance EditVar m (Edit m) where
     editVar = runEdit
