@@ -5,7 +5,7 @@
 
 {-|
 Module      : Control.Mutate
-Copyright   : (c) Craig Roche 2013
+Copyright   : (c) 2013 Craig Roche
 License     : BSD-style
 
 Maintainer  : cdxr01@gmail.com
