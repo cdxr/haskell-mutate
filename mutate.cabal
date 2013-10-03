@@ -13,4 +13,4 @@ cabal-version:       >=1.8
 
 library
   exposed-modules:     Control.Mutate, Control.Mutate.State
-  build-depends:       base ==4.6.*, monad-stm ==0.1.*, mtl ==2.1.*, stm ==2.4.*, transformers-base ==0.4.*
+  build-depends:       base ==4.6.*, monad-stm ==0.1.*, mtl ==2.1.*, stm ==2.4.*, transformers-base ==0.4.*, StateVar ==1.0.*

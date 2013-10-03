@@ -13,7 +13,7 @@ Stability   : experimental
 Portability : non-portable
 
 This module provides abstractions for working with variables that are mutable
-over a particular base monad. It defines the typeclasses 'WriteVar', 'EditVar',
+in a particular base monad. It defines the typeclasses 'WriteVar', 'EditVar',
 and 'ReadVar', representing values that may be replaced, modified, and retrieved.
 
 It also provides two abstract types:
@@ -21,6 +21,13 @@ It also provides two abstract types:
 * 'Edit' m s - \"Modify-only\" variables isomorphic to @(s -> s) -> m ()@
 
 * 'Write' m s - \"Replace-only\" variables isomorphic to @s -> m ()@
+
+NOTE: This module deals only with mutable state, not concurrency. No operations
+are used that may block or synchronize between threads. The laws mandated by
+these typeclasses are only valid in the absence of concurrency. At this time,
+it is recommended to use these operations only in single-threaded applications,
+within an external lock, or when working with operations that may occur in any
+order.
 -}
 
 module Control.Mutate (
@@ -58,8 +65,7 @@ edit :: (EditVar m v) => v s -> Edit m s
 edit = Edit . editVar
 
 
--- | @Write m s@ represents a shared state @s@ that can be written to in a
--- monad @m@.
+-- | @Write m s@ represents a state @s@ that can be overwritten in a monad @m@.
 newtype Write m s = Write { runWrite :: s -> m () }
 
 -- | Encapsulate a @WriteVar@ in a @Write@.
@@ -67,8 +73,9 @@ write :: (WriteVar m v) => v s -> Write m s
 write = Write . writeVar
 
 
--- | This class represents observable state.
--- 'readVar' must not modify any values, and must not block.
+-- | @ReadVar m v@ indicates that the contents of the variable @v@ may be
+-- observed in the monad @m@.
+-- 'readVar' must be an idempotent operation, and must not block.
 --
 -- @
 -- 'readVar' v >> 'return' a === 'return' a
@@ -93,14 +100,14 @@ instance ReadVar IO GettableStateVar where
     readVar = get
 
 
--- | This class represents a shared value that may be replaced.
--- 'writeVar' must not block.
+-- | @WriteVar m v@ represents that the contents of a variable @v@ can be
+-- replaced in the monad @m@. 'writeVar' must not block.
 --
 -- @
 -- 'writeVar' v s === 'writeVar' v a >> 'writeVar' v s
 -- @
 --
--- If a type is also an instance of 'ReadVar', the following
+-- If @v@ is also an instance of 'ReadVar', the following
 -- must hold:
 --
 -- @
@@ -133,13 +140,12 @@ instance WriteVar m (Write m) where
     writeVar = runWrite
 
 
--- | This class represents mutable state that can be mapped over.
--- 'editVar' must not block.
+-- | @EditVar m v@ represents that the contents of the variable @v@ can be
+-- mapped over in the monad @m@. 'editVar' must not block.
 --
 -- @
 -- 'writeVar' v a === 'editVar' v (const a)
 -- 'editVar' v f >> 'editVar' v g === 'editVar' v (g . f)
--- 'editVar'' v f = 'editVar' v $! f
 -- @
 --
 -- Minimal complete definition: 'editVar'
