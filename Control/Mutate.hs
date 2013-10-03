@@ -24,25 +24,29 @@ It also provides two abstract types:
 
 NOTE: This module deals only with mutable state, not concurrency. No operations
 are used that may block or synchronize between threads. The laws mandated by
-these typeclasses are only valid in the absence of concurrency. At this time,
-it is recommended to use these operations only in single-threaded applications,
-within an external lock, or when working with operations that may occur in any
-order.
+these typeclasses are only valid when the variables are not shared between
+threads.
 -}
 
 module Control.Mutate (
- -- * Types
-   Edit
- , edit
- , Write
- , write
- -- * Reading
- , ReadVar ( readVar )
- -- * Writing
- , WriteVar ( writeVar )
- -- * Editing
- , EditVar ( editVar, editVar' )
-) where
+    -- * Typeclasses
+    -- ** ReadVar
+    ReadVar ( readVar ),
+    -- ** WriteVar
+    WriteVar ( writeVar ),
+    -- ** EditVar
+    EditVar ( editVar, editVar' ),
+
+    -- * Abstract Types
+    -- ** Write
+    Write,
+    write,
+    mapWrite,
+    -- ** Edit
+    Edit,
+    edit,
+    mapEdit,
+    ) where
 
 
 import Data.IORef
@@ -63,6 +67,20 @@ newtype Edit m s = Edit { runEdit :: (s -> s) -> m () }
 -- | Encapsulate an @EditVar@ in an @Edit@.
 edit :: (EditVar m v) => v s -> Edit m s
 edit = Edit . editVar
+{-# INLINABLE edit #-}
+
+-- | @mapEdit f v@ is an `Edit` that maps @f@ over every function passed
+-- to @editVar v@:
+--
+-- @
+-- editVar (mapEdit f v) g === editVar v (f g)
+-- @
+--
+-- For this to result in a valid @Edit@, it must satisfy @f id = id@.
+--
+mapEdit :: ((t -> t) -> s -> s) -> Edit m s -> Edit m t
+mapEdit f v = Edit (runEdit v . f)
+{-# INLINABLE mapEdit #-}
 
 
 -- | @Write m s@ represents a state @s@ that can be overwritten in a monad @m@.
@@ -71,6 +89,18 @@ newtype Write m s = Write { runWrite :: s -> m () }
 -- | Encapsulate a @WriteVar@ in a @Write@.
 write :: (WriteVar m v) => v s -> Write m s
 write = Write . writeVar
+{-# INLINABLE write #-}
+
+-- | @mapWrite f v@ is a `Write` that applies @f@ to every value passed to
+-- @writeVar v@:
+--
+-- @
+-- writeVar (mapWrite f v) a === writeVar v (f a)
+-- @
+--
+mapWrite :: (t -> s) -> Write m s -> Write m t
+mapWrite f v = Write (runWrite v . f)
+{-# INLINABLE mapWrite #-}
 
 
 -- | @ReadVar m v@ indicates that the contents of the variable @v@ may be

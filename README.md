@@ -1,6 +1,6 @@
 # mutate
 
-`mutate` is a Haskell package providing abstractions that are polymorphic over
+`mutate` is a Haskell package providing typeclasses that are polymorphic over
 mutable variables. It is an attempt to formalize properties that are common to
 IORefs, STRefs, TVars, and StateVars.
 
@@ -36,8 +36,8 @@ provide an equivalent of `readIORef`, so this constraint guarantees that
 `addTwo'` will now work with `StateVar`s as well as any other `v` for which
 `EditVar IO v` is implemented.
 
-`Control.Mutate` provides a few types and typeclasses with precisely defined
-relationships that enable additional means of abstraction.
+`Control.Mutate` provides a few related types and typeclasses enable further
+abstraction.
 
 
 ## disadvantages
