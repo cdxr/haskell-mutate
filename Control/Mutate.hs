@@ -22,10 +22,10 @@ It also provides two abstract types:
 
 * 'Write' m s - \"Replace-only\" variables isomorphic to @s -> m ()@
 
-NOTE: This module deals only with mutable state, not concurrency. No operations
-are used that may block or synchronize between threads. The laws mandated by
-these typeclasses are only valid when the variables are not shared between
-threads.
+NOTE: This module deals only with mutable state, not concurrency.
+Instances defined in IO are not thread-safe, and their laws are only valid
+provided that the variables are not accessed by multiple threads. For shared
+mutable state, see Control.Mutate.Atomic.
 -}
 
 module Control.Mutate (
@@ -76,7 +76,8 @@ edit = Edit . editVar
 -- editVar (mapEdit f v) g === editVar v (f g)
 -- @
 --
--- For this to result in a valid @Edit@, it must satisfy @f id = id@.
+-- @mapEdit f v@ is only a valid @Edit@ when it satisfies @f id = id@ and when
+-- @v@ is a valid @Edit@.
 --
 mapEdit :: ((t -> t) -> s -> s) -> Edit m s -> Edit m t
 mapEdit f v = Edit (runEdit v . f)
