@@ -20,6 +20,9 @@ import Control.Monad
 import Control.Monad.Trans.State
 import Control.Concurrent.MVar
 
+import Data.StateVar ( StateVar )  -- used in haddock documentation
+import Data.IORef    ( IORef )     -- used in haddock documentation
+
 import Data.Tuple ( swap )
 
 import Control.Mutate.Mono

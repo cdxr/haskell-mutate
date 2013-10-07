@@ -1,4 +1,4 @@
-# mutate
+## mutate
 
 `mutate` is a Haskell package providing typeclasses that are polymorphic over
 mutable variables. It is an attempt to formalize properties that are common to
@@ -13,7 +13,7 @@ mutable.
 state variables. It is currently in early development.
 
 
-## motivation
+### motivation
 
 Suppose you have written the following function:
 
@@ -22,10 +22,10 @@ addTwo :: IORef Int -> IO ()
 addTwo v = modifyIORef v (+2)
 ```
 
-It is easy to see at a glance that this function does not read the value of the
-IORef, it only maps a function over it. However, the type alone does not
-guarantee that the value has not been read and stored somewhere else. Using
-`Control.Mutate`, we can write:
+It is easy to see from this function's definition that it does not read the
+value of the IORef, it only maps a function over it. However, the type alone
+does not guarantee that the value has not been read and stored somewhere else.
+Using `Control.Mutate`, we can write:
 
 ```haskell
 addTwo' :: (EditVar IO v) => v Int -> IO ()
@@ -38,6 +38,3 @@ provide an equivalent of `readIORef`, so this constraint guarantees that
 `addTwo'` can modify the variable but may not observe it. As an added bonus,
 `addTwo'` will now work with `StateVar`s as well as any other `v` for which
 `EditVar IO v` is implemented.
-
-`Control.Mutate` provides a few related types and typeclasses enable further
-abstraction.
