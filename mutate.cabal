@@ -1,5 +1,5 @@
 name:                mutate
-version:             1.0.0.1
+version:             1.0.1.0
 synopsis:            mutable state abstractions
 -- description:         
 license:             BSD3
@@ -12,5 +12,5 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
-  exposed-modules:     Control.Mutate, Control.Mutate.Atomic
+  exposed-modules:     Control.Mutate, Control.Mutate.Mono, Control.Mutate.Atomic, Control.Mutate.Utils
   build-depends:       base ==4.6.*, stm ==2.4.*, StateVar ==1.0.*, transformers ==0.3.*

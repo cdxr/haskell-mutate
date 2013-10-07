@@ -22,7 +22,7 @@ import Control.Concurrent.MVar
 
 import Data.Tuple ( swap )
 
-import Control.Mutate
+import Control.Mutate.Mono
 
 
 -- * AtomicVar
@@ -68,8 +68,7 @@ newtype Atomic m s = Atomic { runAtomic :: forall a. (s -> m (a, s)) -> m a }
 
 
 -- | Create a new @Atomic IO s@. This is an `MVar` that is restricted to
--- using only atomic operations (it is always full and every `takeMVar` is
--- paired with a `putMVar`).
+-- using only atomic operations (every `takeMVar` is paired with a `putMVar`).
 newAtomicIO :: s -> IO (Atomic IO s)
 newAtomicIO s = do
     v <- newMVar s
