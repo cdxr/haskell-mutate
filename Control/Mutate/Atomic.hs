@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -68,6 +69,10 @@ instance AtomicVar IO MVar where
 -- * Atomic
 
 newtype Atomic m s = Atomic { runAtomic :: forall a. (s -> m (a, s)) -> m a }
+
+
+instance (Monad m) => AtomicVar m (Atomic m) where
+    editAtomic = runAtomic
 
 
 -- | Create a new @Atomic IO s@. This is an `MVar` that is restricted to
