@@ -87,11 +87,12 @@ newAtomicIO s = do
 -- primary use of this function is to convert a `StateVar` into
 -- a concurrent resource.
 --
--- This should not be used to convert an `IORef` to an `Atomic`. In that
--- case, it is better to use an `MVar` or to create one with `newAtomicIO`.
+-- This can also be used to convert an `IORef` to an `Atomic`, but in that
+-- case it is better to use an `MVar` or to create one with `newAtomicIO`.
 --
--- WARNING: access to the variable is only atomic if all clients of the
+-- WARNING: access to the resource is only atomic if all clients of the
 -- variable access it through this returned `Atomic` value.
+--
 atomicLock :: (ReadVar IO v, WriteVar IO v) => v s -> IO (Atomic IO s)
 atomicLock v = do
     lock <- newMVar ()
